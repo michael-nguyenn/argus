@@ -1,0 +1,11 @@
+settings:
+  default_interval_seconds: 60
+  cooldown_minutes: 10
+
+products:
+  - id: "mock-test-product"
+    name: "Mock Product"
+    source: "mock"
+    url: "n/a"
+    interval_seconds: 45
+    notify: true
