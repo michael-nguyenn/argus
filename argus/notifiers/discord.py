@@ -1,4 +1,4 @@
-from base import BaseNotifier
+from argus.notifiers.base import BaseNotifier
 import os
 import requests
 from datetime import datetime, timezone

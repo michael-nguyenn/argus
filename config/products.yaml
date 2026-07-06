@@ -3,9 +3,23 @@ settings:
   cooldown_minutes: 10
 
 products:
-  - id: "mock-test-product"
-    name: "Mock Product"
+  # 1. The basic restock
+  - id: "mock-restock"
+    name: "Mock Restock"
     source: "mock"
     url: "n/a"
-    interval_seconds: 45
-    notify: true
+    script: ["OUT_OF_STOCK", "IN_STOCK"]
+
+  # 2. Flaky network
+  - id: "mock-flaky"
+    name: "Mock Flaky"
+    source: "mock"
+    url: "n/a"
+    script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
+
+  # 3. Cooldown test — restock, dip, restock again inside cooldown window
+  - id: "mock-wave"
+    name: "Mock Wave"
+    source: "mock"
+    url: "n/a"
+    script: ["OUT_OF_STOCK", "IN_STOCK", "OUT_OF_STOCK", "IN_STOCK"]
