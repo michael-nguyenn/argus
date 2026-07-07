@@ -5,7 +5,7 @@ class MockAdapter(BaseAdapter):
     Used to simulate the pipeline (scheduler -> state -> alerts -> cooldown -> discord)
 
     Each product carries carries a script = ["OUT_OF_STOCK", "IN_STOCK", "UKNOWN", "IN_STOCK"]. 
-    Each check consumes the next entry, and the last entry repeats once the script is exhausted.
+    Each check consumes the next entry, wrapping around product["script"] if needed.
     """
 
     def __init__(self):
