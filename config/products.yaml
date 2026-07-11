@@ -3,23 +3,38 @@ settings:
   cooldown_minutes: 10
 
 products:
-  # 1. The basic restock
+  - id: "chaos-rising-etb"
+    name: "Pokémon TCG: Chaos Rising Elite Trainer Box"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/pokemon-tcg-mega-evolution-chaos-rising-elite-trainer-box/19906421"
+    cooldown_minutes: 5
+
+  - id: "fitbit-air-lavender"
+    name: "Fitbit Air (Lavender)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-lavender-only-at-best-buy/19849002"
+
+  - id: "fitbit-air-obsidian"
+    name: "Fitbit Air (Obsidian)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-obsidian/19849003"
+
+  - id: "fitbit-air-berry"
+    name: "Fitbit Air (Berry)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"
+
+  # mock products
   - id: "mock-restock"
     name: "Mock Restock"
     source: "mock"
     url: "n/a"
+    interval_seconds: 15
     script: ["OUT_OF_STOCK", "IN_STOCK"]
 
-  # 2. Flaky network
   - id: "mock-flaky"
     name: "Mock Flaky"
     source: "mock"
     url: "n/a"
+    interval_seconds: 15
     script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
-
-  # 3. Cooldown test — restock, dip, restock again inside cooldown window
-  - id: "mock-wave"
-    name: "Mock Wave"
-    source: "mock"
-    url: "n/a"
-    script: ["OUT_OF_STOCK", "IN_STOCK", "OUT_OF_STOCK", "IN_STOCK"]
