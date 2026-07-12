@@ -54,6 +54,3 @@ def load_config(path: str) -> dict:
 
     return data
 
-if __name__ == "__main__":
-    config = load_config("config/products.yaml")
-    print(config['products'])

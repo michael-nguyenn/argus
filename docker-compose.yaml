@@ -1,0 +1,7 @@
+services:
+  argus:
+    build: .           
+    env_file: .env
+    volumes:
+      - ./config:/config:ro
+      - ./state:/state

@@ -28,13 +28,13 @@ products:
   - id: "mock-restock"
     name: "Mock Restock"
     source: "mock"
-    url: "n/a"
+    url: "https://example.com/mock.ca"
     interval_seconds: 15
     script: ["OUT_OF_STOCK", "IN_STOCK"]
 
   - id: "mock-flaky"
     name: "Mock Flaky"
     source: "mock"
-    url: "n/a"
+    url: "https://example.com/mock"
     interval_seconds: 15
     script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
