@@ -1,6 +1,7 @@
 settings:
   default_interval_seconds: 60
   cooldown_minutes: 10
+  max_threads: 4
 
 products:
   - id: "chaos-rising-etb"

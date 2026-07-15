@@ -8,15 +8,14 @@ from argus.adapters import register_adapter, get_adapter
 from argus.adapters.mock import MockAdapter
 from argus.adapters.bestbuy import BestBuyAdapter
 from argus.notifiers.discord import DiscordNotifier
-from argus.adapters.base import StockStatus
+from argus.adapters.base import StockStatus, CheckResult
 import argparse
-
+from concurrent.futures import ThreadPoolExecutor
 
 SLEEP_INTERVAL = 5 # seconds between each scheduling loop
 JITTER_AMOUNT = 0.2 # add variation to the stock check intervals
 
 logger = logging.getLogger("argus")
-
 
 
 def main():
@@ -50,10 +49,11 @@ def main():
     notifiers.append(discord_notifier)
 
     # Enter the scheduler loop
-    run_scheduler(products, state_store, notifiers, settings)
+    with ThreadPoolExecutor(max_workers=settings["max_threads"]) as executor:
+        run_scheduler(products, state_store, notifiers, settings, executor)
 
 
-def run_scheduler(products, state_store, notifiers, settings):
+def run_scheduler(products, state_store, notifiers, settings, executor):
     """
     product = {
         'id': 'chaos-rising-etb', 
@@ -70,19 +70,28 @@ def run_scheduler(products, state_store, notifiers, settings):
     # product_id -> epoch time stamp
     # empty means everything is due
     next_check = {}
+    
+    in_flight = set() # this keeps track of products already being handled
+    future_to_product = {} # this maps a Future object to a products dict
 
     while True:
         now = time.time()
 
+        # === PHASE 1 - DISAPTCH: For each product due and not in flight, submit a job request ===
         for product in products:
             product_id = product["id"]
             # 0 means never scheduled -> do it now
             if now < next_check.get(product_id, 0):
                 continue
 
-            adapter = get_adapter(product["source"])
-            result = adapter.check(product)
+            # We'll submit check_product() to our executor
+            # Mark the product as in-flight
+            if product_id not in in_flight:
+                future = executor.submit(check_product, product)
+                in_flight.add(product_id)
+                future_to_product[future] = product
 
+        # === PHASE 2 - Harvest: For each done future, process the result. ===
             old: StockStatus | None = state_store.get_last_status(product_id)
             
             alerted = False
@@ -117,6 +126,19 @@ def run_scheduler(products, state_store, notifiers, settings):
 
         # So we don't blast thru our CPU cycles 
         time.sleep(SLEEP_INTERVAL)
+
+
+def check_product(product: dict) -> tuple[str, CheckResult]:
+    """
+    Runs inside a worker thread.
+
+    Get the rate limiter for the product's site, and then call the adaptor's check().
+    Returns (product_id, result)
+    """
+    adapter = get_adapter(product["source"])
+    result: CheckResult = adapter.check(product)
+    return result
+
 
 if __name__ == "__main__":
     main()
