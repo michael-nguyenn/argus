@@ -80,43 +80,43 @@ def run_scheduler(products, state_store, notifiers, settings, executor):
         # === PHASE 1 - DISAPTCH: For each product due and not in flight, submit a job request ===
         for product in products:
             product_id = product["id"]
+
             # 0 means never scheduled -> do it now
             if now < next_check.get(product_id, 0):
                 continue
 
-            # We'll submit check_product() to our executor
-            # Mark the product as in-flight
+            # Submit job, update in_flight and future_to_product
             if product_id not in in_flight:
                 future = executor.submit(check_product, product)
                 in_flight.add(product_id)
                 future_to_product[future] = product
 
         # === PHASE 2 - Harvest: For each done future, process the result. ===
-            old: StockStatus | None = state_store.get_last_status(product_id)
+
+        # Go thru each future, and check if it's done
+        done = [f for f in future_to_product if f.done()] # this gets a snapshot of the state of each future
+
+        # Using a copy lets us mutate without worry
+        for future in done:
+            product = future_to_product[future]
+            product_id = product["id"]
+
+            try:
+                result = future.result()
+            except Exception as e:
+                logger.error(f"check for {product_id} raised: {e}")
+                del future_to_product[future]
+                in_flight.discard(product_id)
+                continue
+
+            # Send off the result to process and alert our notifiers
+            alerted = process_and_alert(result, product, state_store, settings, notifiers, now)
             
-            alerted = False
+            # Remove from our set and dict
+            del future_to_product[future]
+            in_flight.discard(product_id)
 
-            # UNKNOWN never particaptes in transitions or state: a bad network between two
-            # IN_STOCK checks shouldn't look like a restock
-            if result.status != StockStatus.UNKNOWN:
-
-                # Alert on the OUT -> IN scenario only. 
-                # If old is None, it's the product's first definitive check, and records it silently
-                if old == StockStatus.OUT_OF_STOCK and result.status == StockStatus.IN_STOCK:
-                    last_alert = state_store.get_last_alert_ts(product_id)
-                    cooldown = product.get("cooldown_minutes", settings["cooldown_minutes"])
-
-                    # Cooldown surpresses repeat alerts. State is still updated below
-                    # Per product override handles cooldown
-                    if  product.get("notify", True) and (last_alert is None or (now - last_alert) > cooldown * 60):
-
-                        # Alerted accumulates across notifiers. True if any delivery succeeds.
-                        # All failures leaves the last_alert_ts unset, so that the next transition retires
-                        # rather than cooldown surpression on an alert that never went thru
-                        for notifier in notifiers:
-                            ok = notifier.notify(product, old.value, result.status.value, now)
-                            alerted = alerted or ok
-                    
+            # Update Storage
             state_store.update(product_id, result.status, alerted=alerted)
             interval = product["interval_seconds"]
             logger.info(f"checked {product_id} source={product['source']} status={result.status.value} latency={result.latency_ms:.0f}ms")
@@ -128,7 +128,7 @@ def run_scheduler(products, state_store, notifiers, settings, executor):
         time.sleep(SLEEP_INTERVAL)
 
 
-def check_product(product: dict) -> tuple[str, CheckResult]:
+def check_product(product: dict) -> CheckResult:
     """
     Runs inside a worker thread.
 
@@ -139,6 +139,36 @@ def check_product(product: dict) -> tuple[str, CheckResult]:
     result: CheckResult = adapter.check(product)
     return result
 
+
+def process_and_alert(result, product, state_store, settings, notifiers, now) -> bool:
+    product_id = product["id"]
+
+    old: StockStatus | None = state_store.get_last_status(product_id)
+    
+    alerted = False
+
+    # UNKNOWN never particaptes in transitions or state: a bad network between two
+    # IN_STOCK checks shouldn't look like a restock
+    if result.status != StockStatus.UNKNOWN:
+
+        # Alert on the OUT -> IN scenario only. 
+        # If old is None, it's the product's first definitive check, and records it silently
+        if old == StockStatus.OUT_OF_STOCK and result.status == StockStatus.IN_STOCK:
+            last_alert = state_store.get_last_alert_ts(product_id)
+            cooldown = product.get("cooldown_minutes", settings["cooldown_minutes"])
+
+            # Cooldown surpresses repeat alerts. State is still updated below
+            # Per product override handles cooldown
+            if  product.get("notify", True) and (last_alert is None or (now - last_alert) > cooldown * 60):
+
+                # Alerted accumulates across notifiers. True if any delivery succeeds.
+                # All failures leaves the last_alert_ts unset, so that the next transition retires
+                # rather than cooldown surpression on an alert that never went thru
+                for notifier in notifiers:
+                    ok = notifier.notify(product, old.value, result.status.value, now)
+                    alerted = alerted or ok
+
+    return alerted
 
 if __name__ == "__main__":
     main()
