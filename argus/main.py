@@ -12,6 +12,7 @@ from argus.adapters.base import StockStatus, CheckResult
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from argus.rate_limiter import SiteRateLimiter
+from argus.retry import with_retries
 
 SLEEP_INTERVAL = 5 # seconds between each scheduling loop
 JITTER_AMOUNT = 0.2 # add variation to the stock check intervals
@@ -141,8 +142,7 @@ def check_product(product: dict, rate_limiter) -> CheckResult:
     """
     adapter = get_adapter(product["source"])
     rate_limiter.acquire(product["source"])
-    result: CheckResult = adapter.check(product)
-    return result
+    return with_retries(lambda: adapter.check(product))
 
 
 def process_and_alert(result, product, state_store, settings, notifiers, now) -> bool:
