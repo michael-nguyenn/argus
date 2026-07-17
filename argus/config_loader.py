@@ -1,8 +1,14 @@
 import yaml
 
 REQUIRED_FIELDS = ["id", "source", "url"]
-DEFAULT_INTERVAL_SECONDS = 60
-DEFAULT_COOLDOWN_MINUTES = 10
+
+DEFAULT_SETTINGS = {
+    "default_interval_seconds": 60,
+    "cooldown_minutes": 10,
+    "max_threads": 4,
+    "rate_limits": {},
+}
+
 
 def load_config(path: str) -> dict:
     """
@@ -25,17 +31,11 @@ def load_config(path: str) -> dict:
 
         # Products will be an array of dicts
         products_config = data.get('products', [])
-        settings = data.get('settings', {})
 
-        # Handle missing settings dict
-        if not settings:
-            settings = {
-                "default_interval_seconds": DEFAULT_INTERVAL_SECONDS,
-                "cooldown_minutes": DEFAULT_COOLDOWN_MINUTES
-            }
-
-            data['settings'] = settings
-
+        settings = data.get('settings') or {}
+        for key, default in DEFAULT_SETTINGS.items():
+            settings.setdefault(key, default)
+        data['settings'] = settings
 
         # Handle missing fields
         for index, config in enumerate(products_config):
