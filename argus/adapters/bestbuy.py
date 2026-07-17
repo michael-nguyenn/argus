@@ -1,4 +1,4 @@
-from argus.adapters.base import BaseAdapter, CheckResult, StockStatus
+from argus.adapters.base import BaseAdapter, CheckResult, StockStatus, ErrorKind
 import requests
 import time
 import logging
@@ -36,10 +36,18 @@ class BestBuyAdapter(BaseAdapter):
         start = time.monotonic()
         try:
             resp = requests.get(AVAILABILITY_URL, params=params, headers=HEADERS, timeout=10)
+        except requests.Timeout as e:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.error(f"sku={sku} request failed: {e}")
+            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"request failed {e}", ErrorKind.TIMEOUT)
+        except requests.ConnectionError as e:
+            latency_ms = (time.monotonic() - start) * 1000
+            logger.error(f"sku={sku} request failed: {e}")
+            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"request failed {e}", ErrorKind.CONNECTION)
         except requests.RequestException as e:
             latency_ms = (time.monotonic() - start) * 1000
-            logger.error(f"sku={sku} request failued: {e}")
-            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"request failed {e}")
+            logger.error(f"sku={sku} request failed: {e}")
+            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"request failed {e}", ErrorKind.CONNECTION)
 
         latency_ms = (time.monotonic() - start) * 1000
         if 200 <= resp.status_code < 300:
@@ -52,7 +60,7 @@ class BestBuyAdapter(BaseAdapter):
                 order_limit = shipping["orderLimit"]
             except (ValueError, KeyError, IndexError) as e:
                 logger.error(f"sku={sku} json error: {e}")
-                return CheckResult(StockStatus.UNKNOWN,latency_ms, f"json error {e}")
+                return CheckResult(StockStatus.UNKNOWN,latency_ms, f"json error {e}", ErrorKind.PARSE)
             
             # Finally form a good response
             status = StockStatus.IN_STOCK if purchasable else StockStatus.OUT_OF_STOCK
@@ -60,7 +68,22 @@ class BestBuyAdapter(BaseAdapter):
             return CheckResult(status, latency_ms)
             
         else:
+            code = resp.status_code
+            retry_after = None
+
+            if code == 429:
+                kind = ErrorKind.RATE_LIMITED
+                retry_after: str | None = resp.headers.get("Retry-After")
+            elif code >= 500:
+                kind = ErrorKind.HTTP_5XX
+            elif code == 403:
+                kind = ErrorKind.BLOCKED
+            else:
+                kind = ErrorKind.HTTP_4XX
+
+            retry_after_s = float(retry_after) if retry_after and retry_after.isdigit() else None
+
             logger.error(f"sku={sku} response status code: {resp.status_code}")
-            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"http {resp.status_code}")
+            return CheckResult(StockStatus.UNKNOWN,latency_ms, f"http {resp.status_code}", kind, retry_after_s)
 
 

@@ -11,6 +11,7 @@ from argus.notifiers.discord import DiscordNotifier
 from argus.adapters.base import StockStatus, CheckResult
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from argus.rate_limiter import SiteRateLimiter
 
 SLEEP_INTERVAL = 5 # seconds between each scheduling loop
 JITTER_AMOUNT = 0.2 # add variation to the stock check intervals
@@ -35,6 +36,7 @@ def main():
     config = load_config(args.config)
     products = config["products"]
     settings = config["settings"]
+    rate_limits = settings["rate_limits"]
 
     # Initialize State Store
     state_store: StateStore = StateStore(args.state)
@@ -48,12 +50,15 @@ def main():
     discord_notifier = DiscordNotifier()
     notifiers.append(discord_notifier)
 
+    # Initialize our rate limiter
+    rate_limiter = SiteRateLimiter(rate_limits)
+
     # Enter the scheduler loop
     with ThreadPoolExecutor(max_workers=settings["max_threads"]) as executor:
-        run_scheduler(products, state_store, notifiers, settings, executor)
+        run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter)
 
 
-def run_scheduler(products, state_store, notifiers, settings, executor):
+def run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter):
     """
     product = {
         'id': 'chaos-rising-etb', 
@@ -87,7 +92,7 @@ def run_scheduler(products, state_store, notifiers, settings, executor):
 
             # Submit job, update in_flight and future_to_product
             if product_id not in in_flight:
-                future = executor.submit(check_product, product)
+                future = executor.submit(check_product, product, rate_limiter)
                 in_flight.add(product_id)
                 future_to_product[future] = product
 
@@ -128,13 +133,14 @@ def run_scheduler(products, state_store, notifiers, settings, executor):
         time.sleep(SLEEP_INTERVAL)
 
 
-def check_product(product: dict) -> CheckResult:
+def check_product(product: dict, rate_limiter) -> CheckResult:
     """
     Runs inside a worker thread.
 
     Get the rate limiter for the product's site, and then call the adaptor's check().
     """
     adapter = get_adapter(product["source"])
+    rate_limiter.acquire(product["source"])
     result: CheckResult = adapter.check(product)
     return result
 

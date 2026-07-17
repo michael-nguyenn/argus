@@ -4,3 +4,4 @@ __pycache__/
 state/
 *.pyc
 test.py
+.DS_Store
