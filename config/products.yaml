@@ -2,6 +2,13 @@ settings:
   default_interval_seconds: 60
   cooldown_minutes: 10
   max_threads: 4
+  rate_limits:
+    bestbuy:
+      min_interval_seconds: 15
+      jitter_seconds: 5
+    pokemoncenter:
+      min_interval_seconds: 60
+      jitter_seconds: 10
 
 products:
   - id: "chaos-rising-etb"

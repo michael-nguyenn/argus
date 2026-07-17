@@ -133,7 +133,6 @@ def check_product(product: dict) -> CheckResult:
     Runs inside a worker thread.
 
     Get the rate limiter for the product's site, and then call the adaptor's check().
-    Returns (product_id, result)
     """
     adapter = get_adapter(product["source"])
     result: CheckResult = adapter.check(product)
