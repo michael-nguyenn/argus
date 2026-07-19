@@ -9,6 +9,9 @@ settings:
     pokemoncenter:
       min_interval_seconds: 60
       jitter_seconds: 10
+    cineplex:
+      min_interval_seconds: 30
+      jitter_seconds: 10
 
 products:
   - id: "chaos-rising-etb"
@@ -33,16 +36,37 @@ products:
     url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"
 
   # mock products
-  - id: "mock-restock"
-    name: "Mock Restock"
-    source: "mock"
-    url: "https://example.com/mock.ca"
-    interval_seconds: 15
-    script: ["OUT_OF_STOCK", "IN_STOCK"]
+  # - id: "mock-restock"
+  #   name: "Mock Restock"
+  #   source: "mock"
+  #   url: "https://example.com/mock.ca"
+  #   interval_seconds: 15
+  #   script: ["OUT_OF_STOCK", "IN_STOCK"]
 
-  - id: "mock-flaky"
-    name: "Mock Flaky"
-    source: "mock"
-    url: "https://example.com/mock"
-    interval_seconds: 15
-    script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
+  # - id: "mock-flaky"
+  #   name: "Mock Flaky"
+  #   source: "mock"
+  #   url: "https://example.com/mock"
+  #   interval_seconds: 15
+  #   script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
+
+  # CINEXPLEX
+  - id: "odyssey-imax70mm-vaughan"
+    name: "The Oddyssey IMAX 70mm (Vaughan)"
+    source: "cineplex"
+    url: "https://www.cineplex.com/movie/the-odyssey"
+    film_id: 37617
+    location_id: 7408
+    after_date: "2026-08-12" # alert when bookable date appears after this date
+    experience: ["IMAX", "70mm"]
+    interval_seconds: 300
+
+  - id: "odyssey-imax70mm-sauga"
+    name: "The Oddyssey IMAX 70mm (Sauga)"
+    source: "cineplex"
+    url: "https://www.cineplex.com/movie/the-odyssey"
+    film_id: 37617
+    location_id: 7420
+    after_date: "2026-08-12" # alert when bookable date appears after this date
+    experience: ["IMAX", "70mm"]
+    interval_seconds: 300
