@@ -7,12 +7,16 @@ from argus.state_store import StateStore
 from argus.adapters import register_adapter, get_adapter
 from argus.adapters.mock import MockAdapter
 from argus.adapters.bestbuy import BestBuyAdapter
+from argus.adapters.cineplex import CineplexAdapter
+from argus.adapters.pokemon_center import PokemonCenterAdapter
 from argus.notifiers.discord import DiscordNotifier
 from argus.adapters.base import StockStatus, CheckResult
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from argus.rate_limiter import SiteRateLimiter
 from argus.retry import with_retries
+from argus.status_server import StatusServer
+from collections import defaultdict
 
 SLEEP_INTERVAL = 5 # seconds between each scheduling loop
 JITTER_AMOUNT = 0.2 # add variation to the stock check intervals
@@ -45,6 +49,8 @@ def main():
     # Register Adapters
     register_adapter(MockAdapter())
     register_adapter(BestBuyAdapter())
+    register_adapter(CineplexAdapter())
+    register_adapter(PokemonCenterAdapter())
 
     # Initialize Notifiers
     notifiers = []
@@ -54,12 +60,22 @@ def main():
     # Initialize our rate limiter
     rate_limiter = SiteRateLimiter(rate_limits)
 
+    # Set up health endpoint
+    snapshot_ref = {"current": {}}
+    status = StatusServer(
+        settings["status_port"],
+        lambda: snapshot_ref["current"]
+    )
+    # start up our daemon thread
+    status.start()
+
+
     # Enter the scheduler loop
     with ThreadPoolExecutor(max_workers=settings["max_threads"]) as executor:
-        run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter)
+        run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter, snapshot_ref)
 
 
-def run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter):
+def run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter, snapshot_ref):
     """
     product = {
         'id': 'chaos-rising-etb', 
@@ -79,6 +95,9 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
     
     in_flight = set() # this keeps track of products already being handled
     future_to_product = {} # this maps a Future object to a products dict
+
+    status_data = {} # prod_id -> entry dict
+    error_counts = defaultdict(int)
 
     while True:
         now = time.time()
@@ -113,7 +132,11 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
                 logger.error(f"check for {product_id} raised: {e}")
                 del future_to_product[future]
                 in_flight.discard(product_id)
+                error_counts[product["source"]] += 1
                 continue
+
+            if result.status == StockStatus.UNKNOWN:
+                error_counts[product["source"]] += 1
 
             # Send off the result to process and alert our notifiers
             alerted = process_and_alert(result, product, state_store, settings, notifiers, now)
@@ -125,10 +148,23 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
             # Update Storage
             state_store.update(product_id, result.status, alerted=alerted)
             interval = product["interval_seconds"]
+
+            status_data[product_id] = {
+                "last_status": result.status.value,
+                "last_check_ts": now,
+                "last_latency_ms": result.latency_ms
+            }
+
             logger.info(f"checked {product_id} source={product['source']} status={result.status.value} latency={result.latency_ms:.0f}ms")
 
             # +- JITTER_AMOUNT to add some randomness to the stock checking
             next_check[product_id] = now + interval + uniform(-JITTER_AMOUNT,JITTER_AMOUNT) * interval
+
+        # Update our snapshot - use copies to prevent race conditions
+        snapshot_ref["current"] = {
+            "products": dict(status_data),
+            "errors_since_startup": dict(error_counts)
+        }
 
         # So we don't blast thru our CPU cycles 
         time.sleep(SLEEP_INTERVAL)

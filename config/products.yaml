@@ -2,6 +2,7 @@ settings:
   default_interval_seconds: 60
   cooldown_minutes: 10
   max_threads: 4
+  status_port: 8080
   rate_limits:
     bestbuy:
       min_interval_seconds: 15
@@ -14,26 +15,26 @@ settings:
       jitter_seconds: 10
 
 products:
-  - id: "chaos-rising-etb"
-    name: "Pokémon TCG: Chaos Rising Elite Trainer Box"
-    source: "bestbuy"
-    url: "https://www.bestbuy.ca/en-ca/product/pokemon-tcg-mega-evolution-chaos-rising-elite-trainer-box/19906421"
-    cooldown_minutes: 5
+  # - id: "chaos-rising-etb"
+  #   name: "Pokémon TCG: Chaos Rising Elite Trainer Box"
+  #   source: "bestbuy"
+  #   url: "https://www.bestbuy.ca/en-ca/product/pokemon-tcg-mega-evolution-chaos-rising-elite-trainer-box/19906421"
+  #   cooldown_minutes: 5
 
-  - id: "fitbit-air-lavender"
-    name: "Fitbit Air (Lavender)"
-    source: "bestbuy"
-    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-lavender-only-at-best-buy/19849002"
+  # - id: "fitbit-air-lavender"
+  #   name: "Fitbit Air (Lavender)"
+  #   source: "bestbuy"
+  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-lavender-only-at-best-buy/19849002"
 
-  - id: "fitbit-air-obsidian"
-    name: "Fitbit Air (Obsidian)"
-    source: "bestbuy"
-    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-obsidian/19849003"
+  # - id: "fitbit-air-obsidian"
+  #   name: "Fitbit Air (Obsidian)"
+  #   source: "bestbuy"
+  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-obsidian/19849003"
 
-  - id: "fitbit-air-berry"
-    name: "Fitbit Air (Berry)"
-    source: "bestbuy"
-    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"
+  # - id: "fitbit-air-berry"
+  #   name: "Fitbit Air (Berry)"
+  #   source: "bestbuy"
+  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"
 
   # mock products
   # - id: "mock-restock"
@@ -50,7 +51,7 @@ products:
   #   interval_seconds: 15
   #   script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
 
-  # CINEXPLEX
+  # CINEPLEX
   - id: "odyssey-imax70mm-vaughan"
     name: "The Oddyssey IMAX 70mm (Vaughan)"
     source: "cineplex"

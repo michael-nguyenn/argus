@@ -5,3 +5,5 @@ services:
     volumes:
       - ./config:/config:ro
       - ./state:/state
+    environment:
+      - TZ=America/Toronto
