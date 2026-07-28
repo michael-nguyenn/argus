@@ -7,3 +7,5 @@ services:
       - ./state:/state
     environment:
       - TZ=America/Toronto
+    ports:
+      - "8080:8080"
