@@ -3,6 +3,10 @@ settings:
   cooldown_minutes: 10
   max_threads: 4
   status_port: 8080
+  queue:
+    job_queue: "argus.jobs"
+    results_queue: "argus.results"
+    heartbeats_queue: "argus.heartbeats"
   rate_limits:
     bestbuy:
       min_interval_seconds: 15
