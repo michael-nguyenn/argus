@@ -3,8 +3,12 @@ settings:
   cooldown_minutes: 10
   max_threads: 4
   status_port: 8080
+  heartbeat_interval_seconds: 10
+  job_timeout_seconds: 240
+  worker_liveness_timeout_seconds: 30
   queue:
-    job_queue: "argus.jobs"
+    url: "amqp://guest:guest@localhost:5672/"
+    jobs_queue: "argus.jobs"
     results_queue: "argus.results"
     heartbeats_queue: "argus.heartbeats"
   rate_limits:

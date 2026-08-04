@@ -4,7 +4,7 @@ import time
 from random import uniform
 from argus.config_loader import load_config
 from argus.state_store import StateStore
-from argus.adapters import register_adapter, get_adapter
+from argus.adapters import register_adapter
 from argus.adapters.mock import MockAdapter
 from argus.adapters.bestbuy import BestBuyAdapter
 from argus.adapters.cineplex import CineplexAdapter
@@ -14,7 +14,6 @@ from argus.adapters.base import StockStatus, CheckResult
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from argus.rate_limiter import SiteRateLimiter
-from argus.retry import with_retries
 from argus.status_server import StatusServer
 from collections import defaultdict
 
@@ -168,17 +167,6 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
 
         # So we don't blast thru our CPU cycles 
         time.sleep(SLEEP_INTERVAL)
-
-
-def check_product(product: dict, rate_limiter) -> CheckResult:
-    """
-    Runs inside a worker thread.
-
-    Get the rate limiter for the product's site, and then call the adaptor's check().
-    """
-    adapter = get_adapter(product["source"])
-    rate_limiter.acquire(product["source"])
-    return with_retries(lambda: adapter.check(product))
 
 
 def process_and_alert(result, product, state_store, settings, notifiers, now) -> bool:
