@@ -2,20 +2,16 @@ from dotenv import load_dotenv
 import logging
 import time
 from random import uniform
+import argparse
+from collections import defaultdict
+
 from argus.config_loader import load_config
 from argus.state_store import StateStore
-from argus.adapters import register_adapter
-from argus.adapters.mock import MockAdapter
-from argus.adapters.bestbuy import BestBuyAdapter
-from argus.adapters.cineplex import CineplexAdapter
-from argus.adapters.pokemon_center import PokemonCenterAdapter
 from argus.notifiers.discord import DiscordNotifier
 from argus.adapters.base import StockStatus, CheckResult
-import argparse
-from concurrent.futures import ThreadPoolExecutor
-from argus.rate_limiter import SiteRateLimiter
 from argus.status_server import StatusServer
-from collections import defaultdict
+from argus.queue import JobQueue
+from argus.messages import make_job
 
 SLEEP_INTERVAL = 5 # seconds between each scheduling loop
 JITTER_AMOUNT = 0.2 # add variation to the stock check intervals
@@ -24,7 +20,6 @@ logger = logging.getLogger("argus")
 
 
 def main():
-
     logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -40,24 +35,15 @@ def main():
     config = load_config(args.config)
     products = config["products"]
     settings = config["settings"]
-    rate_limits = settings["rate_limits"]
+    q_settings = settings["queue"]
 
     # Initialize State Store
     state_store: StateStore = StateStore(args.state)
-
-    # Register Adapters
-    register_adapter(MockAdapter())
-    register_adapter(BestBuyAdapter())
-    register_adapter(CineplexAdapter())
-    register_adapter(PokemonCenterAdapter())
 
     # Initialize Notifiers
     notifiers = []
     discord_notifier = DiscordNotifier()
     notifiers.append(discord_notifier)
-
-    # Initialize our rate limiter
-    rate_limiter = SiteRateLimiter(rate_limits)
 
     # Set up health endpoint
     snapshot_ref = {"current": {}}
@@ -68,13 +54,13 @@ def main():
     # start up our daemon thread
     status.start()
 
+    # Set up our Message Queue
+    queue: JobQueue = JobQueue(q_settings["url"])
 
-    # Enter the scheduler loop
-    with ThreadPoolExecutor(max_workers=settings["max_threads"]) as executor:
-        run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter, snapshot_ref)
+    run_coordinator(products, state_store, notifiers, settings, queue, q_settings, snapshot_ref)
 
 
-def run_scheduler(products, state_store, notifiers, settings, executor, rate_limiter, snapshot_ref):
+def run_coordinator(products, state_store, notifiers, settings, queue, q_settings, snapshot_ref):
     """
     product = {
         'id': 'chaos-rising-etb', 
@@ -88,16 +74,16 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
     }
     """
 
-    # product_id -> epoch time stamp
-    # empty means everything is due
-    next_check = {}
+    # Empty means everything is due
+    next_check = {} # product_id -> epoch time stamp
+    in_flight = {} # job_id -> (product_id, dispatched_ts)
+    in_flight_products = set()
     
-    in_flight = set() # this keeps track of products already being handled
-    future_to_product = {} # this maps a Future object to a products dict
 
     status_data = {} # prod_id -> entry dict
     error_counts = defaultdict(int)
-
+    last_heartbeat = {} # worker_id -> heartbeat msg
+    products_by_id = {p["id"]: p for p in products}
     while True:
         now = time.time()
 
@@ -110,63 +96,81 @@ def run_scheduler(products, state_store, notifiers, settings, executor, rate_lim
                 continue
 
             # Submit job, update in_flight and future_to_product
-            if product_id not in in_flight:
-                future = executor.submit(check_product, product, rate_limiter)
-                in_flight.add(product_id)
-                future_to_product[future] = product
+            if product_id not in in_flight_products:
+                job = make_job(product)
+                queue.publish(q_settings["jobs_queue"], job)
+                in_flight[job["job_id"]] = (product_id, job["dispatched_ts"])
+                in_flight_products.add(product_id)
 
-        # === PHASE 2 - Harvest: For each done future, process the result. ===
+        # === PHASE 2 - Harvest: Drain results until empty. ===
+        drain_results(queue, q_settings, products_by_id, in_flight, in_flight_products,
+                    state_store, notifiers, settings, status_data, error_counts,
+                    next_check, now)
 
-        # Go thru each future, and check if it's done
-        done = [f for f in future_to_product if f.done()] # this gets a snapshot of the state of each future
+        # === PHASE 3 — Drain heartbeats ===
+        drain_heartbeats(queue, q_settings, last_heartbeat)
 
-        # Using a copy lets us mutate without worry
-        for future in done:
-            product = future_to_product[future]
-            product_id = product["id"]
+        # === PHASE 4 — Timeout sweep ===
+        sweep_timeouts(in_flight, in_flight_products, settings, now)
 
-            try:
-                result = future.result()
-            except Exception as e:
-                logger.error(f"check for {product_id} raised: {e}")
-                del future_to_product[future]
-                in_flight.discard(product_id)
-                error_counts[product["source"]] += 1
-                continue
-
-            if result.status == StockStatus.UNKNOWN:
-                error_counts[product["source"]] += 1
-
-            # Send off the result to process and alert our notifiers
-            alerted = process_and_alert(result, product, state_store, settings, notifiers, now)
-            
-            # Remove from our set and dict
-            del future_to_product[future]
-            in_flight.discard(product_id)
-
-            # Update Storage
-            state_store.update(product_id, result.status, alerted=alerted)
-            interval = product["interval_seconds"]
-
-            status_data[product_id] = {
-                "last_status": result.status.value,
-                "last_check_ts": now,
-                "last_latency_ms": result.latency_ms
-            }
-
-            logger.info(f"checked {product_id} source={product['source']} status={result.status.value} latency={result.latency_ms:.0f}ms")
-
-            # +- JITTER_AMOUNT to add some randomness to the stock checking
-            next_check[product_id] = now + interval + uniform(-JITTER_AMOUNT,JITTER_AMOUNT) * interval
+        # === PHASE 5 — Liveness sweep ===
+        sweep_liveness(last_heartbeat, settings, now)
 
         # Update our snapshot - use copies to prevent race conditions
         snapshot_ref["current"] = {
             "products": dict(status_data),
-            "errors_since_startup": dict(error_counts)
+            "errors_since_startup": dict(error_counts),
+            "queue_depth": queue.depth(q_settings["jobs_queue"]),
+            "in_flight": len(in_flight),
+            "workers": {wid: round(now - msg["ts"], 1) for wid, msg in last_heartbeat.items()},
         }
 
         # So we don't blast thru our CPU cycles 
         time.sleep(SLEEP_INTERVAL)
+
+
+def drain_results(queue, q_settings, products_by_id, in_flight, in_flight_products,
+                  state_store, notifiers, settings, status_data, error_counts,
+                  next_check, now):
+    while True:
+        got = queue.consume(q_settings["results_queue"])
+        if got is None:
+            break
+
+        msg, tag = got
+        queue.ack(tag)
+
+        job_id = msg["job_id"]
+        if job_id not in in_flight:
+            logger.warning(f"stale result dropped: job={job_id} product={msg['product_id']} worker={msg['worker_id']}")
+            continue
+
+        # resolve which product this result belongs to
+        product_id, _ = in_flight[job_id]
+        product = products_by_id[product_id]
+
+        result = CheckResult(StockStatus(msg["status"]), msg["latency_ms"], msg["error"])
+
+        if result.status == StockStatus.UNKNOWN:
+            error_counts[product["source"]] += 1
+
+        alerted = process_and_alert(result, product, state_store, settings, notifiers, now)
+        state_store.update(product_id, result.status, alerted=alerted)
+
+        status_data[product_id] = {
+            "last_status": result.status.value,
+            "last_check_ts": now,
+            "last_latency_ms": result.latency_ms,
+        }
+
+        logger.info(f"checked {product_id} source={product['source']} status={result.status.value} latency={result.latency_ms:.0f}ms")
+
+        interval = product["interval_seconds"]
+        next_check[product_id] = now + interval + uniform(-JITTER_AMOUNT, JITTER_AMOUNT) * interval
+
+        # completed — release the product for future dispatch
+        del in_flight[job_id]
+        in_flight_products.discard(product_id)
 
 
 def process_and_alert(result, product, state_store, settings, notifiers, now) -> bool:
@@ -198,6 +202,31 @@ def process_and_alert(result, product, state_store, settings, notifiers, now) ->
                     alerted = alerted or ok
 
     return alerted
+
+def drain_heartbeats(queue, q_settings, last_heartbeat):
+    while True:
+        got = queue.consume(q_settings["heartbeats_queue"])
+        if got is None:
+            break
+        msg, tag = got
+        queue.ack(tag)
+        last_heartbeat[msg["worker_id"]] = msg
+
+def sweep_timeouts(in_flight, in_flight_products, settings, now):
+    expired = [job_id for job_id, (pid, ts) in in_flight.items() 
+               if now - ts > settings["job_timeout_seconds"]]
+
+    for job_id in expired:
+        product_id, ts = in_flight[job_id]
+        logger.warning(f"job timed out: job={job_id} product={product_id} age={now - ts:.0f}s")
+        del in_flight[job_id]
+        in_flight_products.discard(product_id)
+
+def sweep_liveness(last_heartbeat, settings, now):
+    for worker_id, msg in last_heartbeat.items():
+        if now - msg["ts"] > settings["worker_liveness_timeout_seconds"]:
+            logger.warning(f"worker stale: {worker_id} last_seen={now - msg['ts']:.0f}s ago")
+
 
 if __name__ == "__main__":
     main()
