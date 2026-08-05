@@ -5,6 +5,7 @@ import argparse
 import socket
 import uuid
 import threading
+import os
 
 # ARGUS RELATED STUFF
 from argus.adapters.base import CheckResult, StockStatus, ErrorKind
@@ -53,7 +54,8 @@ def worker_main():
     jobs_q: str = q_settings["jobs_queue"]
     res_q: str = q_settings["results_queue"]
 
-    queue = JobQueue(q_settings["url"])
+    queue_url = os.getenv("ARGUS_QUEUE_URL", q_settings["url"])
+    queue = JobQueue(queue_url)
 
     # Set up some tracking variables
     jobs_completed = 0
@@ -61,7 +63,8 @@ def worker_main():
 
     # We're gonna get a daemon thread to run this
     def heartbeat_loop():
-        hb_queue = JobQueue(q_settings["url"])
+        queue_url = os.getenv("ARGUS_QUEUE_URL", q_settings["url"])
+        hb_queue = JobQueue(queue_url)
 
         while True:
             hb_queue.publish(heartbeat_q, 
@@ -110,6 +113,7 @@ def worker_main():
         queue.ack(tag)
         jobs_completed += 1
         current_job_id = None
+        logger.info(f"completed job={message['job_id']} product={product['id']} status={result.status.value} worker={worker_id}")
 
 def check_product(product: dict, rate_limiter) -> CheckResult:
     """
@@ -120,3 +124,6 @@ def check_product(product: dict, rate_limiter) -> CheckResult:
     adapter = get_adapter(product["source"])
     rate_limiter.acquire(product["source"])
     return with_retries(lambda: adapter.check(product))
+
+if __name__ == "__main__": 
+    worker_main()

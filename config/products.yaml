@@ -23,59 +23,23 @@ settings:
       jitter_seconds: 10
 
 products:
-  # - id: "chaos-rising-etb"
-  #   name: "Pokémon TCG: Chaos Rising Elite Trainer Box"
-  #   source: "bestbuy"
-  #   url: "https://www.bestbuy.ca/en-ca/product/pokemon-tcg-mega-evolution-chaos-rising-elite-trainer-box/19906421"
-  #   cooldown_minutes: 5
+  - id: "chaos-rising-etb"
+    name: "Pokémon TCG: Chaos Rising Elite Trainer Box"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/pokemon-tcg-mega-evolution-chaos-rising-elite-trainer-box/19906421"
+    cooldown_minutes: 5
 
-  # - id: "fitbit-air-lavender"
-  #   name: "Fitbit Air (Lavender)"
-  #   source: "bestbuy"
-  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-lavender-only-at-best-buy/19849002"
+  - id: "fitbit-air-lavender"
+    name: "Fitbit Air (Lavender)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-lavender-only-at-best-buy/19849002"
 
-  # - id: "fitbit-air-obsidian"
-  #   name: "Fitbit Air (Obsidian)"
-  #   source: "bestbuy"
-  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-obsidian/19849003"
+  - id: "fitbit-air-obsidian"
+    name: "Fitbit Air (Obsidian)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-obsidian/19849003"
 
-  # - id: "fitbit-air-berry"
-  #   name: "Fitbit Air (Berry)"
-  #   source: "bestbuy"
-  #   url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"
-
-  # mock products
-  # - id: "mock-restock"
-  #   name: "Mock Restock"
-  #   source: "mock"
-  #   url: "https://example.com/mock.ca"
-  #   interval_seconds: 15
-  #   script: ["OUT_OF_STOCK", "IN_STOCK"]
-
-  # - id: "mock-flaky"
-  #   name: "Mock Flaky"
-  #   source: "mock"
-  #   url: "https://example.com/mock"
-  #   interval_seconds: 15
-  #   script: ["IN_STOCK", "UNKNOWN", "IN_STOCK"]
-
-  # CINEPLEX
-  - id: "odyssey-imax70mm-vaughan"
-    name: "The Oddyssey IMAX 70mm (Vaughan)"
-    source: "cineplex"
-    url: "https://www.cineplex.com/movie/the-odyssey"
-    film_id: 37617
-    location_id: 7408
-    after_date: "2026-08-12" # alert when bookable date appears after this date
-    experience: ["IMAX", "70mm"]
-    interval_seconds: 300
-
-  - id: "odyssey-imax70mm-sauga"
-    name: "The Oddyssey IMAX 70mm (Sauga)"
-    source: "cineplex"
-    url: "https://www.cineplex.com/movie/the-odyssey"
-    film_id: 37617
-    location_id: 7420
-    after_date: "2026-08-12" # alert when bookable date appears after this date
-    experience: ["IMAX", "70mm"]
-    interval_seconds: 300
+  - id: "fitbit-air-berry"
+    name: "Fitbit Air (Berry)"
+    source: "bestbuy"
+    url: "https://www.bestbuy.ca/en-ca/product/google-fitbit-air-screenless-fitness-tracker-with-heart-rate-monitor-berry/19849004"

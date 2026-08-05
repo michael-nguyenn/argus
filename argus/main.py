@@ -4,6 +4,7 @@ import time
 from random import uniform
 import argparse
 from collections import defaultdict
+import os
 
 from argus.config_loader import load_config
 from argus.state_store import StateStore
@@ -55,7 +56,8 @@ def main():
     status.start()
 
     # Set up our Message Queue
-    queue: JobQueue = JobQueue(q_settings["url"])
+    queue_url = os.getenv("ARGUS_QUEUE_URL", q_settings["url"])
+    queue: JobQueue = JobQueue(queue_url)
 
     run_coordinator(products, state_store, notifiers, settings, queue, q_settings, snapshot_ref)
 

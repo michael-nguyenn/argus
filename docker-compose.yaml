@@ -1,11 +1,29 @@
 services:
-  argus:
-    build: .           
+  queue:
+    image: rabbitmq:3-management
+    ports: ["15672:15672"]
+
+  coordinator:
+    build: .
+    command: python -m argus.main --config /config/products.yaml --state /state/state.json
     env_file: .env
     volumes:
       - ./config:/config:ro
       - ./state:/state
+    depends_on: [queue]
+    ports: ["8080:8080"]
     environment:
       - TZ=America/Toronto
-    ports:
-      - "8080:8080"
+      - ARGUS_QUEUE_URL=amqp://guest:guest@queue:5672/
+  
+  worker:
+    build: .
+    command: python -m argus.worker --config /config/products.yaml
+    env_file: .env
+    volumes:
+      - ./config:/config:ro
+    depends_on: [queue]
+    environment:
+      - TZ=America/Toronto
+      - ARGUS_QUEUE_URL=amqp://guest:guest@queue:5672/
+

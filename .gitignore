@@ -5,3 +5,4 @@ state/
 *.pyc
 test.py
 .DS_Store
+config/test.yaml
