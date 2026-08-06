@@ -225,8 +225,19 @@ def sweep_timeouts(in_flight, in_flight_products, settings, now):
         in_flight_products.discard(product_id)
 
 def sweep_liveness(last_heartbeat, settings, now):
+    timeout = settings["worker_liveness_timeout_seconds"]
+    evict_after = timeout * 10
+
+    # Evict workers silent so long they're considered gone, not just stale
+    dead = [worker_id for worker_id, msg in last_heartbeat.items()
+            if now - msg["ts"] > evict_after]
+    for worker_id in dead:
+        logger.warning(f"worker removed from roster: {worker_id} silent for {now - last_heartbeat[worker_id]['ts']:.0f}s")
+        del last_heartbeat[worker_id]
+
+    # Warn about stale but not yet evicted workers
     for worker_id, msg in last_heartbeat.items():
-        if now - msg["ts"] > settings["worker_liveness_timeout_seconds"]:
+        if now - msg["ts"] > timeout:
             logger.warning(f"worker stale: {worker_id} last_seen={now - msg['ts']:.0f}s ago")
 
 
